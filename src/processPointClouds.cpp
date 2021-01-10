@@ -76,8 +76,6 @@ std::unordered_set<int> ProcessPointClouds<PointT>::RansacPlane(typename pcl::Po
     while (maxIterations--){
         std::unordered_set<int> inliers;
 
-        // Randomly sample subset and fit line
-        // it may select one point instead of two different
         while (inliers.size() < 3){
             inliers.insert(rand() % (cloud->points.size()));
         }
@@ -167,6 +165,20 @@ ProcessPointClouds<PointT>::SegmentPlaneRansac(typename pcl::PointCloud<PointT>:
     return segResult;
 }
 
+template<typename PointT>
+void ProcessPointClouds<PointT>::clusterIt(int index, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr &cluster,
+               std::vector<bool> &processed, KdTree *tree, float distanceTol) {
+    processed[index] = true;
+    cluster->push_back(cloud->points[index]);
+
+    std::vector<int> nearest = tree->search(cloud->points[index], distanceTol);
+    for (int id: nearest) {
+        if (!processed[id]) {
+            clusterIt(id, cloud, cluster, processed, tree, distanceTol);
+        }
+    }
+
+}
 
 template<typename PointT>
 std::vector<typename pcl::PointCloud<PointT>::Ptr>
@@ -177,20 +189,33 @@ ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr clo
     auto startTime = std::chrono::steady_clock::now();
 
     std::vector<typename pcl::PointCloud<PointT>::Ptr> clusters;
+    std::vector<bool> processed(cloud->points.size(), false);
 
-    // Creating the KdTree object for the search method of the extraction
-    typename pcl::search::KdTree<PointT>::Ptr tree(new pcl::search::KdTree<PointT>);
-    tree->setInputCloud(cloud);
+    KdTree *tree = new KdTree;
 
-    // Fill in the function to perform euclidean clustering to group detected obstacles
-    std::vector<pcl::PointIndices> cluster_indices;
-    pcl::EuclideanClusterExtraction<PointT> ec;
-    ec.setClusterTolerance(clusterTolerance);
-    ec.setMinClusterSize(minSize);
-    ec.setMaxClusterSize(maxSize);
-    ec.setSearchMethod(tree);
-    ec.setInputCloud(cloud);
-    ec.extract(cluster_indices);
+    for (int i = 0; i < cloud->points.size(); i++){
+        tree->insert(cloud->points[i], i);
+    }
+
+    int i = 0;
+    while (i < cloud->points.size()) {
+        if (processed[i]) {
+            i++;
+            continue;
+        }
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cluster (new  pcl::PointCloud<pcl::PointXYZI>());
+        clusterIt(i, cloud, cluster, processed, tree, clusterTolerance);
+        clusters.push_back(cluster);
+        i++;
+    }
+    /*
+    int clusterId = 0;
+    for (pcl::PointCloud<pcl::PointXYZI>::Ptr cluster : clusters) {
+        pcl::PointCloud<pcl::PointXYZI>::Ptr clusterCloud(new pcl::PointCloud<pcl::PointXYZI>());
+        for (pcl::PointXYZI point: *cluster)
+            clusterCloud->points.push_back(point);
+        ++clusterId;
+    }
 
     for (pcl::PointIndices getIndices: cluster_indices) {
         typename pcl::PointCloud<PointT>::Ptr cloudCluster(new pcl::PointCloud<PointT>);
@@ -203,7 +228,7 @@ ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr clo
         cloudCluster->is_dense = true;
 
         clusters.push_back(cloudCluster);
-    }
+    }*/
 
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
