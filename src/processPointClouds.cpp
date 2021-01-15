@@ -167,14 +167,16 @@ ProcessPointClouds<PointT>::SegmentPlaneRansac(typename pcl::PointCloud<PointT>:
 
 template<typename PointT>
 void ProcessPointClouds<PointT>::clusterIt(int index, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr &cluster,
-               std::vector<bool> &processed, KdTree *tree, float distanceTol) {
+               std::vector<bool> &processed, KdTree *tree, float distanceTol, int maxSize) {
     processed[index] = true;
     cluster->push_back(cloud->points[index]);
+    if(cluster->size() > maxSize)
+        return;
 
     std::vector<int> nearest = tree->search(cloud->points[index], distanceTol);
     for (int id: nearest) {
         if (!processed[id]) {
-            clusterIt(id, cloud, cluster, processed, tree, distanceTol);
+            clusterIt(id, cloud, cluster, processed, tree, distanceTol, maxSize);
         }
     }
 
@@ -204,31 +206,11 @@ ProcessPointClouds<PointT>::Clustering(typename pcl::PointCloud<PointT>::Ptr clo
             continue;
         }
         pcl::PointCloud<pcl::PointXYZI>::Ptr cluster (new  pcl::PointCloud<pcl::PointXYZI>());
-        clusterIt(i, cloud, cluster, processed, tree, clusterTolerance);
-        clusters.push_back(cluster);
+        clusterIt(i, cloud, cluster, processed, tree, clusterTolerance, maxSize);
+        if(cluster->size() > minSize && cluster->size() <= maxSize)
+            clusters.push_back(cluster);
         i++;
     }
-    /*
-    int clusterId = 0;
-    for (pcl::PointCloud<pcl::PointXYZI>::Ptr cluster : clusters) {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr clusterCloud(new pcl::PointCloud<pcl::PointXYZI>());
-        for (pcl::PointXYZI point: *cluster)
-            clusterCloud->points.push_back(point);
-        ++clusterId;
-    }
-
-    for (pcl::PointIndices getIndices: cluster_indices) {
-        typename pcl::PointCloud<PointT>::Ptr cloudCluster(new pcl::PointCloud<PointT>);
-
-        for (int index: getIndices.indices)
-            cloudCluster->points.push_back(cloud->points[index]);
-
-        cloudCluster->width = cloudCluster->points.size();
-        cloudCluster->height = 1;
-        cloudCluster->is_dense = true;
-
-        clusters.push_back(cloudCluster);
-    }*/
 
     auto endTime = std::chrono::steady_clock::now();
     auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);

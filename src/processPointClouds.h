@@ -49,7 +49,7 @@ public:
     std::vector<boost::filesystem::path> streamPcd(std::string dataPath);
 
     void clusterIt(int index, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr &cluster,
-                   std::vector<bool> &processed, KdTree *tree, float distanceTol);
+                   std::vector<bool> &processed, KdTree *tree, float distanceTol, int maxSize);
 
 };
 #endif /* PROCESSPOINTCLOUDS_H_ */
