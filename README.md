@@ -1,4 +1,4 @@
-# PSFND Project 1
+# SFND Project 1
 
 ![demo](media/ObstacleDetectionFPS.gif)
 
